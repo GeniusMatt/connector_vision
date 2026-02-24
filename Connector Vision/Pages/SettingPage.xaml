@@ -1,0 +1,53 @@
+<Page x:Class="Connector_Vision.Pages.SettingPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="#1A1A2E">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: Settings Panel -->
+        <Border Grid.Column="0" Style="{StaticResource DarkPanel}" Margin="0,0,10,0">
+            <StackPanel>
+                <TextBlock Text="Camera Settings" Style="{StaticResource SectionHeader}"/>
+
+                <TextBlock Text="Camera Device" Style="{StaticResource ParamLabel}" Margin="0,0,0,4"/>
+                <ComboBox x:Name="CmbCamera" Height="30" Margin="0,0,0,12"
+                          SelectionChanged="CmbCamera_SelectionChanged"/>
+
+                <TextBlock Text="Resolution" Style="{StaticResource ParamLabel}" Margin="0,0,0,4"/>
+                <ComboBox x:Name="CmbResolution" Height="30" Margin="0,0,0,12">
+                    <ComboBoxItem Content="Auto" IsSelected="True"/>
+                    <ComboBoxItem Content="1920x1080"/>
+                    <ComboBoxItem Content="1280x720"/>
+                    <ComboBoxItem Content="640x480"/>
+                </ComboBox>
+
+                <Button Content="Camera Properties" Style="{StaticResource DarkButton}"
+                        Click="BtnCameraProperties_Click" Margin="0,0,0,12" HorizontalAlignment="Left"/>
+
+                <TextBlock x:Name="TxtCameraInfo" Text="Camera: Not connected"
+                           Foreground="#888899" FontSize="11" Margin="0,0,0,8"/>
+                <TextBlock x:Name="TxtFps" Text="FPS: --"
+                           Foreground="#888899" FontSize="11" Margin="0,0,0,20"/>
+
+                <Rectangle Height="1" Fill="#3D3D5C" Margin="0,0,0,20"/>
+
+                <Button Content="Apply &amp; Save" Style="{StaticResource AccentButton}"
+                        Click="BtnSave_Click" HorizontalAlignment="Left" MinWidth="120"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Right: Camera Preview -->
+        <Border Grid.Column="1" Style="{StaticResource DarkPanel}" ClipToBounds="True">
+            <Grid>
+                <Image x:Name="ImgPreview" Stretch="Uniform"/>
+                <TextBlock x:Name="TxtNoCamera" Text="No Camera Feed"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="18" Foreground="#555566"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

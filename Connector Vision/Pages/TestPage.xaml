@@ -1,0 +1,163 @@
+<Page x:Class="Connector_Vision.Pages.TestPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="#1A1A2E">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: Camera View -->
+        <Border Grid.Column="0" Style="{StaticResource DarkPanel}" Margin="0,0,10,0" ClipToBounds="True">
+            <Grid>
+                <Image x:Name="ImgCamera" Stretch="Uniform"/>
+                <TextBlock x:Name="TxtNoFeed" Text="No Camera Feed"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="20" Foreground="#555566"/>
+            </Grid>
+        </Border>
+
+        <!-- Right: Results Panel -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- OK/NG Indicator -->
+                <Border x:Name="BorderResult" Background="#2D2D3D" CornerRadius="8"
+                        Height="100" Margin="0,0,0,10">
+                    <TextBlock x:Name="TxtResult" Text="READY"
+                               FontSize="42" FontWeight="Bold" Foreground="#888899"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Model & Control -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Model" Style="{StaticResource ParamLabel}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="CmbModel" Height="28" Margin="0,0,0,10"
+                                  SelectionChanged="CmbModel_SelectionChanged"/>
+
+                        <Button x:Name="BtnStartStop" Content="START" Style="{StaticResource AccentButton}"
+                                Click="BtnStartStop_Click" FontSize="18" Height="50" Margin="0,0,0,4"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Statistics -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Statistics" Style="{StaticResource SectionHeader}"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Total" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtTotal" Grid.Column="1" Text="0"
+                                       Foreground="White" FontSize="14" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="OK" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtOk" Grid.Column="1" Text="0"
+                                       Foreground="#00CC00" FontSize="14" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="NG" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtNg" Grid.Column="1" Text="0"
+                                       Foreground="#FF3333" FontSize="14" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="OK Rate" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtOkRate" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="14" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Button Content="Reset" Style="{StaticResource DarkButton}"
+                                Click="BtnReset_Click" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Gap Details -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Last Inspection" Style="{StaticResource SectionHeader}"/>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="L1 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtLine1Gap" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="12"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="L2 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtLine2Gap" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="12"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="L3 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtLine3Gap" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="12"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtMaxGap" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="12" FontWeight="Bold"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Time" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock x:Name="TxtInspTime" Grid.Column="1" Text="--"
+                                       Foreground="White" FontSize="12"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Last Result Thumbnail -->
+                <Border Style="{StaticResource DarkPanel}">
+                    <StackPanel>
+                        <TextBlock Text="Last Result" Style="{StaticResource SectionHeader}"/>
+                        <Border Background="#111122" CornerRadius="4" Height="140">
+                            <Image x:Name="ImgLastResult" Stretch="Uniform"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

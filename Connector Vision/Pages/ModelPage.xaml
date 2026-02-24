@@ -1,0 +1,199 @@
+<Page x:Class="Connector_Vision.Pages.ModelPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="#1A1A2E">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: Controls -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0">
+            <StackPanel>
+                <!-- Model Management -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Model / Recipe" Style="{StaticResource SectionHeader}"/>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="TxtModelName" Height="28" VerticalContentAlignment="Center"
+                                     FontSize="12" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="New" Style="{StaticResource AccentButton}"
+                                    Click="BtnNewModel_Click" Padding="10,4" Margin="0,0,5,0"/>
+                            <Button Grid.Column="2" Content="Delete" Style="{StaticResource DangerButton}"
+                                    Click="BtnDeleteModel_Click" Padding="10,4"/>
+                        </Grid>
+                        <ComboBox x:Name="CmbModels" Height="28" Margin="0,0,0,8"
+                                  SelectionChanged="CmbModels_SelectionChanged"/>
+                        <Button Content="Load Selected Model" Style="{StaticResource DarkButton}"
+                                Click="BtnLoadModel_Click" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Measurement Lines -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Measurement Lines" Style="{StaticResource SectionHeader}"/>
+                        <ListBox x:Name="LstLines" Height="90" Background="#1A1A2E" Foreground="White"
+                                 FontSize="11" BorderThickness="1" BorderBrush="#3D3D5C" Margin="0,0,0,8"
+                                 SelectionChanged="LstLines_SelectionChanged"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button x:Name="BtnDrawLine" Content="Draw Line" Style="{StaticResource AccentButton}"
+                                    Click="BtnDrawLine_Click" Padding="10,4" Margin="0,0,5,0"/>
+                            <Button Content="Delete Line" Style="{StaticResource DangerButton}"
+                                    Click="BtnDeleteLine_Click" Padding="10,4" Margin="0,0,5,0"/>
+                            <Button Content="Clear All" Style="{StaticResource DarkButton}"
+                                    Click="BtnClearLines_Click" Padding="10,4"/>
+                        </StackPanel>
+                        <TextBlock x:Name="TxtDrawStatus" Text="Click 'Draw Line' then click 2 points on camera"
+                                   Foreground="#888899" FontSize="10" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Per-Line Gap Limits (shown when a line is selected) -->
+                <Border x:Name="BorderLineLimits" Style="{StaticResource DarkPanel}" Margin="0,0,0,10" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock x:Name="TxtLineLimitsHeader" Text="Line Limits" Style="{StaticResource SectionHeader}"/>
+
+                        <TextBlock Text="Min Gap Width (px)" Style="{StaticResource ParamLabel}"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderLineMinGap" Minimum="0" Maximum="200" Value="0"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnLineParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderLineMinGap, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <TextBlock Text="Max Gap Width (px)" Style="{StaticResource ParamLabel}" Margin="0,6,0,0"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderLineMaxGap" Minimum="1" Maximum="200" Value="20"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnLineParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderLineMaxGap, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Gap Detection Parameters -->
+                <Border Style="{StaticResource DarkPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Edge Detection" Style="{StaticResource SectionHeader}"/>
+
+                        <TextBlock Text="Detection Mode" Style="{StaticResource ParamLabel}"/>
+                        <ComboBox x:Name="CmbEdgeMode" Height="28" Margin="0,0,0,8"
+                                  SelectionChanged="CmbEdgeMode_SelectionChanged">
+                            <ComboBoxItem Content="Strongest Pair"/>
+                            <ComboBoxItem Content="First &amp; Last"/>
+                        </ComboBox>
+
+                        <TextBlock Text="Edge Threshold" Style="{StaticResource ParamLabel}"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderGapThreshold" Minimum="1" Maximum="255" Value="80"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderGapThreshold, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <TextBlock Text="Gaussian Blur" Style="{StaticResource ParamLabel}" Margin="0,6,0,0"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderBlur" Minimum="1" Maximum="31" Value="5"
+                                    IsSnapToTickEnabled="True" TickFrequency="2"
+                                    ValueChanged="OnParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderBlur, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <TextBlock Text="Edge Margin (%)" Style="{StaticResource ParamLabel}" Margin="0,6,0,0"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderEdgeMargin" Minimum="0" Maximum="40" Value="10"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderEdgeMargin, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <TextBlock Text="Min Edge Distance (px)" Style="{StaticResource ParamLabel}" Margin="0,6,0,0"/>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="50"/></Grid.ColumnDefinitions>
+                            <Slider x:Name="SliderMinEdgeSep" Minimum="3" Maximum="100" Value="10"
+                                    IsSnapToTickEnabled="True" TickFrequency="1"
+                                    ValueChanged="OnParamChanged"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value, ElementName=SliderMinEdgeSep, StringFormat={}{0:F0}}"
+                                       Style="{StaticResource ParamLabel}" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Save -->
+                <Button Content="Save Settings" Style="{StaticResource AccentButton}"
+                        Click="BtnSaveSettings_Click" HorizontalAlignment="Left" MinWidth="120"
+                        Margin="0,0,0,10"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Right: Camera Feed + Preview -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="180"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Camera with line overlay + Canvas for crosshair -->
+            <Border Grid.Row="0" Style="{StaticResource DarkPanel}" ClipToBounds="True">
+                <Grid x:Name="CameraContainer">
+                    <Image x:Name="ImgCamera" Stretch="Uniform"/>
+                    <Canvas x:Name="OverlayCanvas"/>
+                    <TextBlock Text="Camera + Measurement Lines" Foreground="#888899" FontSize="10"
+                               VerticalAlignment="Top" HorizontalAlignment="Left" Margin="4,4,0,0"/>
+                </Grid>
+            </Border>
+
+            <!-- Preview row: Intensity Profile + Threshold -->
+            <Grid Grid.Row="1" Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource DarkPanel}" Margin="0,0,3,0" ClipToBounds="True">
+                    <Grid>
+                        <Image x:Name="ImgProfilePreview" Stretch="Uniform"/>
+                        <TextBlock Text="Intensity Profile" Foreground="#888899" FontSize="10"
+                                   VerticalAlignment="Top" HorizontalAlignment="Left" Margin="4,2,0,0"/>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource DarkPanel}" Margin="3,0,0,0" ClipToBounds="True">
+                    <Grid>
+                        <Image x:Name="ImgThresholdPreview" Stretch="Uniform"/>
+                        <TextBlock Text="Edge View" Foreground="#888899" FontSize="10"
+                                   VerticalAlignment="Top" HorizontalAlignment="Left" Margin="4,2,0,0"/>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Buttons + Info -->
+            <StackPanel Grid.Row="2" Margin="0,5,0,0">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                    <Button x:Name="BtnPreview" Content="Preview" Style="{StaticResource AccentButton}"
+                            Click="BtnPreview_Click" Margin="0,0,8,0"/>
+                    <CheckBox x:Name="ChkAutoPreview" Content="Auto Preview" Foreground="#AAAACC"
+                              VerticalAlignment="Center" Margin="0,0,15,0" IsChecked="True"/>
+                    <Button x:Name="BtnLiveTest" Content="Live Test" Style="{StaticResource DarkButton}"
+                            Click="BtnLiveTest_Click" Margin="0,0,10,0"/>
+                    <TextBlock x:Name="TxtLiveResult" Text="" FontSize="16" FontWeight="Bold"
+                               Foreground="#888899" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtPreviewInfo" Text="Draw measurement lines then click Preview"
+                           Foreground="#AAAACC" FontSize="11" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
