@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -39,6 +40,19 @@ namespace Connector_Vision.Pages
         private bool _isDraggingEndpoint;
         private int _dragLineIndex;
         private bool _dragIsPoint1;
+
+        // Debug log file
+        private static readonly string _debugLogPath = System.IO.Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "debug_coords.log");
+
+        private static void LogDebug(string msg)
+        {
+            try
+            {
+                System.IO.File.AppendAllText(_debugLogPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\r\n");
+            }
+            catch { }
+        }
 
         public ModelPage(CameraService cameraService, InspectionService inspectionService,
             InspectionSettings settings, SettingsManager settingsManager)
@@ -127,6 +141,7 @@ namespace Connector_Vision.Pages
         private void OnParamChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_suppressParamEvents || _settings == null) return;
+            ResumeFromPreview();
             UIToSettings();
 
             if (ChkAutoPreview != null && ChkAutoPreview.IsChecked == true && !_isLiveTesting)
@@ -256,6 +271,7 @@ namespace Connector_Vision.Pages
                 return;
             }
 
+            ResumeFromPreview();
             _isDrawingLine = true;
             _hasFirstPoint = false;
             BtnDrawLine.Content = "Click Point 1...";
@@ -339,20 +355,19 @@ namespace Connector_Vision.Pages
             double offsetX = (ctlW - renderedW) / 2;
             double offsetY = (ctlH - renderedH) / 2;
 
+            // GetPosition(ImgCamera) returns Image-local coords, automatically
+            // inverting RenderTransform (zoom/pan). The Image control is sized to
+            // the uniform-scaled bitmap and centered within CameraContainer.
             var pos = e.GetPosition(ImgCamera);
-
-            var tg = ImgCamera.RenderTransform as TransformGroup;
-            if (tg != null && tg.Children.Count >= 2)
-            {
-                var st = (ScaleTransform)tg.Children[0];
-                var tt = (TranslateTransform)tg.Children[1];
-                pos = new System.Windows.Point(
-                    (pos.X - tt.X) / st.ScaleX,
-                    (pos.Y - tt.Y) / st.ScaleY);
-            }
 
             double nx = (pos.X - offsetX) / renderedW;
             double ny = (pos.Y - offsetY) / renderedH;
+
+            int debugPx = (int)(nx * srcW);
+            int debugPy = (int)(ny * srcH);
+            LogDebug($"[ClickToNorm] imgLocal=({pos.X:F1},{pos.Y:F1}) offset=({offsetX:F1},{offsetY:F1}) " +
+                $"rendered=({renderedW:F1},{renderedH:F1}) => nx={nx:F4} ny={ny:F4} => pixel=({debugPx},{debugPy})");
+
             return new System.Windows.Point(nx, ny);
         }
 
@@ -374,8 +389,16 @@ namespace Connector_Vision.Pages
             double offsetX = (ctlW - renderedW) / 2;
             double offsetY = (ctlH - renderedH) / 2;
 
-            cx = offsetX + normX * renderedW;
-            cy = offsetY + normY * renderedH;
+            // Map normalized coords to Image-local space, then use TranslatePoint
+            // to convert to CameraContainer/Canvas space. This accounts for the
+            // Image being centered within the container (layout offset) and any
+            // zoom/pan RenderTransform.
+            double imgLocalX = offsetX + normX * renderedW;
+            double imgLocalY = offsetY + normY * renderedH;
+            var containerPt = ImgCamera.TranslatePoint(
+                new System.Windows.Point(imgLocalX, imgLocalY), CameraContainer);
+            cx = containerPt.X;
+            cy = containerPt.Y;
         }
 
         private void UpdateLineOverlay()
@@ -384,11 +407,22 @@ namespace Connector_Vision.Pages
             if (_settings.MeasurementLines == null || _settings.MeasurementLines.Count == 0) return;
             if (ImgCamera.Source == null) return;
 
+            var bmpDbg = ImgCamera.Source as BitmapSource;
+            if (bmpDbg != null)
+            {
+                LogDebug($"[Overlay] ImgCamera.Source: pixel={bmpDbg.PixelWidth}x{bmpDbg.PixelHeight} " +
+                    $"dip={bmpDbg.Width:F0}x{bmpDbg.Height:F0} dpi={bmpDbg.DpiX:F0}x{bmpDbg.DpiY:F0} " +
+                    $"ctl={ImgCamera.ActualWidth:F1}x{ImgCamera.ActualHeight:F1}");
+            }
+
             for (int i = 0; i < _settings.MeasurementLines.Count; i++)
             {
                 var ml = _settings.MeasurementLines[i];
                 NormalizedToCanvas(ml.X1, ml.Y1, out double cx1, out double cy1);
                 NormalizedToCanvas(ml.X2, ml.Y2, out double cx2, out double cy2);
+
+                LogDebug($"[Overlay] L{i + 1}: norm=({ml.X1:F4},{ml.Y1:F4})->({ml.X2:F4},{ml.Y2:F4}) " +
+                    $"canvas=({cx1:F1},{cy1:F1})->({cx2:F1},{cy2:F1})");
 
                 // Draw line
                 var lineShape = new Line
@@ -528,6 +562,17 @@ namespace Connector_Vision.Pages
             {
                 imgX = _firstClickNormX;
                 var newLine = new MeasurementLine(_firstClickNormX, _firstClickNormY, imgX, imgY);
+
+                // Debug: log the stored line coordinates and corresponding pixel positions
+                var bmpSrc = ImgCamera.Source as BitmapSource;
+                if (bmpSrc != null)
+                {
+                    int fw = bmpSrc.PixelWidth, fh = bmpSrc.PixelHeight;
+                    LogDebug($"[LineCreated] norm=({newLine.X1:F4},{newLine.Y1:F4})->({newLine.X2:F4},{newLine.Y2:F4}) " +
+                        $"pixel=({(int)(newLine.X1 * fw)},{(int)(newLine.Y1 * fh)})->({(int)(newLine.X2 * fw)},{(int)(newLine.Y2 * fh)}) " +
+                        $"bmpSize={fw}x{fh}");
+                }
+
                 if (_settings.MeasurementLines == null)
                     _settings.MeasurementLines = new System.Collections.Generic.List<MeasurementLine>();
                 _settings.MeasurementLines.Add(newLine);
@@ -564,6 +609,7 @@ namespace Connector_Vision.Pages
             }
             else
             {
+                ResumeFromPreview();
                 _isLiveTesting = true;
                 BtnLiveTest.Content = "Stop";
                 OverlayCanvas.Visibility = Visibility.Collapsed;
@@ -639,6 +685,7 @@ namespace Connector_Vision.Pages
 
         private void BtnPreview_Click(object sender, RoutedEventArgs e)
         {
+            ResumeFromPreview();
             RunPreview();
         }
 
@@ -646,7 +693,8 @@ namespace Connector_Vision.Pages
         {
             if (_isPreviewing || _isLiveTesting || _isInspecting) return;
             _isPreviewing = true;
-            OverlayCanvas.Visibility = Visibility.Collapsed;
+            // Keep overlay visible during preview for diagnostic comparison
+            // OverlayCanvas.Visibility = Visibility.Collapsed;
 
             try
             {
@@ -654,8 +702,20 @@ namespace Connector_Vision.Pages
                 if (frame == null)
                 {
                     TxtPreviewInfo.Text = "No camera frame available";
+                    _isPreviewing = false;
                     return;
                 }
+
+                // Log layout diagnostics
+                LogDebug($"[Preview] CameraContainer: {CameraContainer.ActualWidth:F1}x{CameraContainer.ActualHeight:F1}");
+                LogDebug($"[Preview] ImgCamera: {ImgCamera.ActualWidth:F1}x{ImgCamera.ActualHeight:F1}");
+                LogDebug($"[Preview] OverlayCanvas: {OverlayCanvas.ActualWidth:F1}x{OverlayCanvas.ActualHeight:F1}");
+
+                // Check position of ImgCamera relative to CameraContainer
+                var imgPos = ImgCamera.TranslatePoint(new System.Windows.Point(0, 0), CameraContainer);
+                var canvasPos = OverlayCanvas.TranslatePoint(new System.Windows.Point(0, 0), CameraContainer);
+                LogDebug($"[Preview] ImgCamera origin in Container: ({imgPos.X:F1},{imgPos.Y:F1})");
+                LogDebug($"[Preview] OverlayCanvas origin in Container: ({canvasPos.X:F1},{canvasPos.Y:F1})");
 
                 UIToSettings();
                 var settings = _settings;
@@ -673,8 +733,31 @@ namespace Connector_Vision.Pages
                 {
                     if (result.AnnotatedFrame != null)
                     {
-                        ImgCamera.Source = BitmapHelper.MatToBitmapSource(result.AnnotatedFrame);
+                        var previewBmp = BitmapHelper.MatToBitmapSource(result.AnnotatedFrame);
+                        LogDebug($"[Preview] AnnotatedBmp: pixel={previewBmp.PixelWidth}x{previewBmp.PixelHeight} " +
+                            $"dip={previewBmp.Width:F0}x{previewBmp.Height:F0} dpi={previewBmp.DpiX:F0}x{previewBmp.DpiY:F0}");
+                        ImgCamera.Source = previewBmp;
                         result.AnnotatedFrame.Dispose();
+
+                        // Log expected screen position of annotation vs overlay position
+                        if (settings.MeasurementLines != null && settings.MeasurementLines.Count > 0)
+                        {
+                            var ml = settings.MeasurementLines[0];
+                            double scale = Math.Min(ImgCamera.ActualWidth / previewBmp.PixelWidth,
+                                                    ImgCamera.ActualHeight / previewBmp.PixelHeight);
+                            double renderW = previewBmp.PixelWidth * scale;
+                            double renderH = previewBmp.PixelHeight * scale;
+                            double offX = (ImgCamera.ActualWidth - renderW) / 2;
+                            double offY = (ImgCamera.ActualHeight - renderH) / 2;
+                            int px1 = (int)(ml.X1 * previewBmp.PixelWidth);
+                            int py1 = (int)(ml.Y1 * previewBmp.PixelHeight);
+                            double screenX = offX + px1 * scale + imgPos.X;
+                            double screenY = offY + py1 * scale + imgPos.Y;
+                            NormalizedToCanvas(ml.X1, ml.Y1, out double cx, out double cy);
+                            LogDebug($"[Preview] L1 annotation pixel=({px1},{py1}) => screen in container=({screenX:F1},{screenY:F1})");
+                            LogDebug($"[Preview] L1 overlay canvas=({cx:F1},{cy:F1}) canvasOriginOffset=({canvasPos.X:F1},{canvasPos.Y:F1})");
+                            LogDebug($"[Preview] DIFFERENCE: dX={screenX - (cx + canvasPos.X):F1} dY={screenY - (cy + canvasPos.Y):F1}");
+                        }
                     }
 
                     if (result.ProfileFrame != null)
@@ -703,17 +786,26 @@ namespace Connector_Vision.Pages
                     TxtPreviewInfo.Text = "No measurement lines defined. Draw lines first.";
                     ImgProfilePreview.Source = null;
                     ImgThresholdPreview.Source = null;
+                    _isPreviewing = false;
                 }
+
+                // Keep preview visible — _isPreviewing stays true
+                // Camera feed resumes when user clicks Preview again, draws a line,
+                // changes a param, or starts Live Test
             }
             catch (Exception ex)
             {
                 TxtPreviewInfo.Text = $"Preview error: {ex.Message}";
-                System.Diagnostics.Debug.WriteLine($"[Preview] Error: {ex}");
-            }
-            finally
-            {
+                LogDebug($"[Preview] Error: {ex}");
                 _isPreviewing = false;
             }
+        }
+
+        private void ResumeFromPreview()
+        {
+            if (!_isPreviewing) return;
+            _isPreviewing = false;
+            // OnFrameReady will restore live feed + overlay on next camera frame
         }
 
         #endregion

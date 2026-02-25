@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using OpenCvSharp;
 using Connector_Vision.Models;
 
@@ -8,6 +9,14 @@ namespace Connector_Vision.Services
 {
     public class InspectionService
     {
+        private static readonly string _debugLogPath = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory, "debug_coords.log");
+
+        private static void LogDebug(string msg)
+        {
+            try { File.AppendAllText(_debugLogPath, $"[{DateTime.Now:HH:mm:ss.fff}] {msg}\r\n"); } catch { }
+        }
+
         public InspectionResult Inspect(Mat frame, InspectionSettings settings)
         {
             var sw = Stopwatch.StartNew();
@@ -248,6 +257,9 @@ namespace Connector_Vision.Services
             {
                 var line = settings.MeasurementLines[i];
                 line.ToPixelCoords(w, h, out int px1, out int py1, out int px2, out int py2);
+
+                LogDebug($"[Annotate] L{i + 1}: norm=({line.X1:F4},{line.Y1:F4})->({line.X2:F4},{line.Y2:F4}) " +
+                    $"pixel=({px1},{py1})->({px2},{py2}) frameSize={w}x{h}");
 
                 var lineResult = result.LineResults[i];
                 var color = lineResult.IsOk ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
