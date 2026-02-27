@@ -10,7 +10,7 @@ namespace Connector_Vision.Services
     public class InspectionService
     {
         private static readonly string _debugLogPath = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory, "debug_coords.log");
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "debug_coords.log");
 
         private static void LogDebug(string msg)
         {
@@ -53,29 +53,56 @@ namespace Connector_Vision.Services
                 double maxGap = 0;
                 bool allOk = true;
 
-                // 2. For each measurement line: extract profile and find edge distance
-                for (int i = 0; i < settings.MeasurementLines.Count; i++)
+                // Initialize EMA state if line count changed
+                int lineCount = settings.MeasurementLines.Count;
+                if (_emaGapWidths == null || _emaLineCount != lineCount)
+                {
+                    _emaGapWidths = new double[lineCount];
+                    _emaLineCount = lineCount;
+                }
+
+                // 2. For each measurement line: extract band-averaged profile and find edge distance
+                for (int i = 0; i < lineCount; i++)
                 {
                     var line = settings.MeasurementLines[i];
                     line.ToPixelCoords(w, h, out int px1, out int py1, out int px2, out int py2);
 
-                    byte[] profile = ExtractProfile(blurred, px1, py1, px2, py2);
-                    FindEdgeDistance(profile, settings.GapThreshold,
-                        settings.EdgeMarginPercent, settings.MinEdgeSeparation,
-                        settings.EdgeDetectionMode,
-                        out int edge1Pos, out int edge2Pos, out int gapWidth);
+                    double[] bandProfile = ExtractBandAveragedProfile(blurred, px1, py1, px2, py2);
+                    FindEdgeDistance(bandProfile, settings.GapThreshold,
+                        settings.EdgeMarginPercent, settings.EdgeDetectionMode,
+                        out double edge1Pos, out double edge2Pos, out double gapWidth);
 
-                    bool lineOk = gapWidth >= line.MinGapWidth && gapWidth <= line.MaxGapWidth;
+                    // Apply temporal EMA smoothing
+                    if (gapWidth > 0)
+                    {
+                        if (_emaGapWidths[i] == 0)
+                            _emaGapWidths[i] = gapWidth; // seed with first valid measurement
+                        else
+                            _emaGapWidths[i] = EmaAlpha * gapWidth + (1 - EmaAlpha) * _emaGapWidths[i];
+                    }
+                    double smoothedGap = gapWidth > 0 ? _emaGapWidths[i] : gapWidth;
+
+                    bool lineOk = smoothedGap <= line.MaxGapWidth;
                     if (!lineOk) allOk = false;
-                    if (gapWidth > maxGap) maxGap = gapWidth;
+                    if (smoothedGap > maxGap) maxGap = smoothedGap;
+
+                    // Convert band-averaged profile to byte[] for visualization
+                    byte[] profileBytes = new byte[bandProfile.Length];
+                    for (int j = 0; j < bandProfile.Length; j++)
+                    {
+                        double v = bandProfile[j];
+                        if (v < 0) v = 0;
+                        if (v > 255) v = 255;
+                        profileBytes[j] = (byte)v;
+                    }
 
                     result.LineResults.Add(new LineResult
                     {
                         LineIndex = i,
-                        GapWidthPx = gapWidth,
+                        GapWidthPx = smoothedGap,
                         GapStart = edge1Pos,
                         GapEnd = edge2Pos,
-                        ProfileData = profile,
+                        ProfileData = profileBytes,
                         IsOk = lineOk
                     });
                 }
@@ -138,12 +165,180 @@ namespace Connector_Vision.Services
         }
 
         /// <summary>
-        /// Find the distance between the two strongest edges (intensity transitions) in the profile.
-        /// Uses gradient magnitude to detect edges. The gap = distance between the two strongest edges.
+        /// Extract band-averaged intensity profile: sample 2*BandHalfWidth+1 parallel lines
+        /// perpendicular to the measurement direction and average their intensities.
+        /// Returns double[] to preserve sub-byte precision from averaging.
         /// </summary>
-        private void FindEdgeDistance(byte[] profile, int edgeThreshold,
-            int marginPercent, int minEdgeSep, int mode,
-            out int edge1Pos, out int edge2Pos, out int gapWidth)
+        private double[] ExtractBandAveragedProfile(Mat gray, int x1, int y1, int x2, int y2)
+        {
+            double dx = x2 - x1;
+            double dy = y2 - y1;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+            if (len < 1) return new double[0];
+
+            // Perpendicular unit vector
+            double perpX = -dy / len;
+            double perpY = dx / len;
+
+            // Collect profiles from parallel lines
+            var profiles = new List<byte[]>();
+            for (int offset = -BandHalfWidth; offset <= BandHalfWidth; offset++)
+            {
+                int sx1 = x1 + (int)Math.Round(offset * perpX);
+                int sy1 = y1 + (int)Math.Round(offset * perpY);
+                int sx2 = x2 + (int)Math.Round(offset * perpX);
+                int sy2 = y2 + (int)Math.Round(offset * perpY);
+
+                byte[] p = ExtractProfile(gray, sx1, sy1, sx2, sy2);
+                if (p.Length > 0) profiles.Add(p);
+            }
+
+            if (profiles.Count == 0) return new double[0];
+
+            // Use center profile length as reference
+            int refLen = profiles[0].Length;
+            double[] averaged = new double[refLen];
+            int validCount = 0;
+
+            foreach (var p in profiles)
+            {
+                if (p.Length != refLen) continue; // skip mismatched lengths
+                validCount++;
+                for (int i = 0; i < refLen; i++)
+                    averaged[i] += p[i];
+            }
+
+            if (validCount > 0)
+            {
+                for (int i = 0; i < refLen; i++)
+                    averaged[i] /= validCount;
+            }
+
+            return averaged;
+        }
+
+        private const int UpsampleFactor = 4;
+        private const int BandHalfWidth = 3;    // 7 parallel lines total
+        private const double EmaAlpha = 0.3;    // current frame weight
+
+        private double[] _emaGapWidths;
+        private int _emaLineCount;
+
+        /// <summary>
+        /// Upsample a byte profile using Catmull-Rom cubic interpolation.
+        /// </summary>
+        private double[] UpsampleProfile(byte[] profile, int factor)
+        {
+            int origLen = profile.Length;
+            if (origLen < 2) return new double[] { profile.Length > 0 ? profile[0] : 0 };
+
+            int newLen = (origLen - 1) * factor + 1;
+            double[] result = new double[newLen];
+
+            for (int i = 0; i < origLen - 1; i++)
+            {
+                // Catmull-Rom control points: p0, p1, p2, p3
+                double p0 = (i > 0) ? profile[i - 1] : profile[i];
+                double p1 = profile[i];
+                double p2 = profile[i + 1];
+                double p3 = (i + 2 < origLen) ? profile[i + 2] : profile[i + 1];
+
+                for (int j = 0; j < factor; j++)
+                {
+                    double t = (double)j / factor;
+                    double t2 = t * t;
+                    double t3 = t2 * t;
+
+                    // Catmull-Rom spline formula
+                    double val = 0.5 * (
+                        (2.0 * p1) +
+                        (-p0 + p2) * t +
+                        (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+                        (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
+
+                    // Clamp to [0, 255]
+                    if (val < 0) val = 0;
+                    if (val > 255) val = 255;
+
+                    result[i * factor + j] = val;
+                }
+            }
+            // Last sample
+            result[newLen - 1] = profile[origLen - 1];
+            return result;
+        }
+
+        /// <summary>
+        /// Upsample a double profile using Catmull-Rom cubic interpolation.
+        /// Overload for band-averaged profiles that are already double[].
+        /// </summary>
+        private double[] UpsampleProfile(double[] profile, int factor)
+        {
+            int origLen = profile.Length;
+            if (origLen < 2) return new double[] { origLen > 0 ? profile[0] : 0 };
+
+            int newLen = (origLen - 1) * factor + 1;
+            double[] result = new double[newLen];
+
+            for (int i = 0; i < origLen - 1; i++)
+            {
+                double p0 = (i > 0) ? profile[i - 1] : profile[i];
+                double p1 = profile[i];
+                double p2 = profile[i + 1];
+                double p3 = (i + 2 < origLen) ? profile[i + 2] : profile[i + 1];
+
+                for (int j = 0; j < factor; j++)
+                {
+                    double t = (double)j / factor;
+                    double t2 = t * t;
+                    double t3 = t2 * t;
+
+                    double val = 0.5 * (
+                        (2.0 * p1) +
+                        (-p0 + p2) * t +
+                        (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+                        (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
+
+                    if (val < 0) val = 0;
+                    if (val > 255) val = 255;
+
+                    result[i * factor + j] = val;
+                }
+            }
+            result[newLen - 1] = profile[origLen - 1];
+            return result;
+        }
+
+        /// <summary>
+        /// Parabolic sub-pixel peak refinement around a discrete peak position.
+        /// </summary>
+        private double SubPixelPeak(double[] gradient, int peakPos)
+        {
+            if (peakPos <= 0 || peakPos >= gradient.Length - 1)
+                return peakPos;
+
+            double a = gradient[peakPos - 1];
+            double b = gradient[peakPos];
+            double c = gradient[peakPos + 1];
+
+            double denom = a - 2.0 * b + c;
+            if (Math.Abs(denom) < 1e-6)
+                return peakPos;
+
+            double offset = 0.5 * (a - c) / denom;
+            // Clamp refinement to ±0.5 to prevent wild jumps on noisy/flat gradients
+            if (offset > 0.5) offset = 0.5;
+            if (offset < -0.5) offset = -0.5;
+            return peakPos + offset;
+        }
+
+        /// <summary>
+        /// Find the distance between the two strongest edges (intensity transitions) in the profile.
+        /// Uses 4x profile upsampling + parabolic sub-pixel peak fitting for fractional precision.
+        /// </summary>
+        private void FindEdgeDistance(double[] profile, int edgeThreshold,
+            int marginPercent, int mode,
+            out double edge1Pos, out double edge2Pos, out double gapWidth)
         {
             edge1Pos = 0;
             edge2Pos = 0;
@@ -151,18 +346,23 @@ namespace Connector_Vision.Services
 
             if (profile.Length < 5) return;
 
-            int len = profile.Length;
+            int origLen = profile.Length;
+            LogDebug($"[SubPixel] Profile length={origLen}, upsampling {UpsampleFactor}x");
 
-            // Apply edge margin: skip first/last N% of the profile
-            int margin = (int)(len * marginPercent / 100.0);
-            int searchStart = Math.Max(1, margin);
-            int searchEnd = Math.Min(len - 2, len - 1 - margin);
+            // Upsample profile for sub-pixel resolution
+            double[] upsampled = UpsampleProfile(profile, UpsampleFactor);
+            int uLen = upsampled.Length;
+
+            // Apply edge margin: skip first/last N% of the upsampled profile
+            int margin = (int)(uLen * marginPercent / 100.0);
+            int searchStart = Math.Max(UpsampleFactor, margin);
+            int searchEnd = Math.Min(uLen - 1 - UpsampleFactor, uLen - 1 - margin);
             if (searchStart >= searchEnd) return;
 
-            // Compute absolute gradient using central difference
-            int[] absGrad = new int[len];
-            for (int i = 1; i < len - 1; i++)
-                absGrad[i] = Math.Abs(profile[i + 1] - profile[i - 1]);
+            // Compute absolute gradient with kernel width = factor (preserves threshold magnitude)
+            double[] absGrad = new double[uLen];
+            for (int i = UpsampleFactor; i < uLen - UpsampleFactor; i++)
+                absGrad[i] = Math.Abs(upsampled[i + UpsampleFactor] - upsampled[i - UpsampleFactor]);
 
             if (mode == 1)
             {
@@ -187,24 +387,33 @@ namespace Connector_Vision.Services
                     }
                 }
 
+                LogDebug($"[SubPixel] Mode=FirstLast, firstEdge={firstEdge}, lastEdge={lastEdge}");
+
                 if (firstEdge >= 0 && lastEdge >= 0 && lastEdge > firstEdge)
                 {
-                    edge1Pos = firstEdge;
-                    edge2Pos = lastEdge;
-                    gapWidth = lastEdge - firstEdge;
+                    double sp1 = SubPixelPeak(absGrad, firstEdge);
+                    double sp2 = SubPixelPeak(absGrad, lastEdge);
+                    edge1Pos = sp1 / UpsampleFactor;
+                    edge2Pos = sp2 / UpsampleFactor;
+                    gapWidth = edge2Pos - edge1Pos;
+                    LogDebug($"[SubPixel] Raw edges: {firstEdge}/{UpsampleFactor}={firstEdge / (double)UpsampleFactor:F2}, {lastEdge}/{UpsampleFactor}={lastEdge / (double)UpsampleFactor:F2}");
+                    LogDebug($"[SubPixel] SubPixel edges: {sp1:F3}/{UpsampleFactor}={edge1Pos:F3}, {sp2:F3}/{UpsampleFactor}={edge2Pos:F3}");
+                    LogDebug($"[SubPixel] Gap: raw={(lastEdge - firstEdge) / (double)UpsampleFactor:F2} -> subpixel={gapWidth:F3}");
                 }
                 else if (firstEdge >= 0)
                 {
-                    edge1Pos = firstEdge;
-                    edge2Pos = firstEdge;
+                    double sp1 = SubPixelPeak(absGrad, firstEdge);
+                    edge1Pos = sp1 / UpsampleFactor;
+                    edge2Pos = edge1Pos;
                     gapWidth = 0;
+                    LogDebug($"[SubPixel] Only one edge found at {firstEdge}, gap=0");
                 }
             }
             else
             {
                 // Strongest Pair mode: find two strongest edges
                 int strongest1Pos = -1;
-                int strongest1Val = 0;
+                double strongest1Val = 0;
                 for (int i = searchStart; i <= searchEnd; i++)
                 {
                     if (absGrad[i] >= edgeThreshold && absGrad[i] > strongest1Val)
@@ -214,11 +423,12 @@ namespace Connector_Vision.Services
                     }
                 }
 
+                LogDebug($"[SubPixel] Mode=StrongestPair, strongest1Pos={strongest1Pos}, val={strongest1Val:F1}");
                 if (strongest1Pos < 0) return;
 
-                int minSep = Math.Max(minEdgeSep, 3);
+                int minSep = 3 * UpsampleFactor;
                 int strongest2Pos = -1;
-                int strongest2Val = 0;
+                double strongest2Val = 0;
                 for (int i = searchStart; i <= searchEnd; i++)
                 {
                     if (Math.Abs(i - strongest1Pos) < minSep) continue;
@@ -229,17 +439,27 @@ namespace Connector_Vision.Services
                     }
                 }
 
+                LogDebug($"[SubPixel] strongest2Pos={strongest2Pos}, val={strongest2Val:F1}");
                 if (strongest2Pos >= 0)
                 {
-                    edge1Pos = Math.Min(strongest1Pos, strongest2Pos);
-                    edge2Pos = Math.Max(strongest1Pos, strongest2Pos);
+                    int rawE1 = Math.Min(strongest1Pos, strongest2Pos);
+                    int rawE2 = Math.Max(strongest1Pos, strongest2Pos);
+                    double sp1 = SubPixelPeak(absGrad, rawE1);
+                    double sp2 = SubPixelPeak(absGrad, rawE2);
+                    edge1Pos = sp1 / UpsampleFactor;
+                    edge2Pos = sp2 / UpsampleFactor;
                     gapWidth = edge2Pos - edge1Pos;
+                    LogDebug($"[SubPixel] Raw edges: {rawE1}/{UpsampleFactor}={rawE1 / (double)UpsampleFactor:F2}, {rawE2}/{UpsampleFactor}={rawE2 / (double)UpsampleFactor:F2}");
+                    LogDebug($"[SubPixel] SubPixel edges: {sp1:F3}/{UpsampleFactor}={edge1Pos:F3}, {sp2:F3}/{UpsampleFactor}={edge2Pos:F3}");
+                    LogDebug($"[SubPixel] Gap: raw={(rawE2 - rawE1) / (double)UpsampleFactor:F2} -> subpixel={gapWidth:F3}");
                 }
                 else
                 {
-                    edge1Pos = strongest1Pos;
-                    edge2Pos = strongest1Pos;
+                    double sp1 = SubPixelPeak(absGrad, strongest1Pos);
+                    edge1Pos = sp1 / UpsampleFactor;
+                    edge2Pos = edge1Pos;
                     gapWidth = 0;
+                    LogDebug($"[SubPixel] Only one edge found at {strongest1Pos}, gap=0");
                 }
             }
         }
@@ -265,11 +485,11 @@ namespace Connector_Vision.Services
                 var color = lineResult.IsOk ? new Scalar(0, 255, 0) : new Scalar(0, 0, 255);
 
                 // Draw the measurement line
-                Cv2.Line(annotated, new Point(px1, py1), new Point(px2, py2), color, 2);
+                Cv2.Line(annotated, new Point(px1, py1), new Point(px2, py2), color, 1);
 
                 // Draw line endpoints (circles)
-                Cv2.Circle(annotated, new Point(px1, py1), 5, color, -1);
-                Cv2.Circle(annotated, new Point(px2, py2), 5, color, -1);
+                Cv2.Circle(annotated, new Point(px1, py1), 3, color, -1);
+                Cv2.Circle(annotated, new Point(px2, py2), 3, color, -1);
 
                 // Draw gap region markers (orange) along the line
                 if (lineResult.GapWidthPx > 0 && lineResult.ProfileData != null && lineResult.ProfileData.Length > 0)
@@ -283,21 +503,21 @@ namespace Connector_Vision.Services
                     int gx2 = px1 + (int)((px2 - px1) * ratioEnd);
                     int gy2 = py1 + (int)((py2 - py1) * ratioEnd);
 
-                    // Draw thick orange line over gap region
+                    // Draw orange line over gap region
                     Cv2.Line(annotated, new Point(gx1, gy1), new Point(gx2, gy2),
-                        new Scalar(0, 165, 255), 4);
+                        new Scalar(0, 165, 255), 2);
 
                     // Draw cyan edge markers at detected edge positions
-                    Cv2.Circle(annotated, new Point(gx1, gy1), 6, new Scalar(255, 255, 0), 2);
-                    Cv2.Circle(annotated, new Point(gx2, gy2), 6, new Scalar(255, 255, 0), 2);
+                    Cv2.Circle(annotated, new Point(gx1, gy1), 3, new Scalar(255, 255, 0), 1);
+                    Cv2.Circle(annotated, new Point(gx2, gy2), 3, new Scalar(255, 255, 0), 1);
                 }
 
                 // Draw gap width label
                 int labelX = (px1 + px2) / 2 + 10;
                 int labelY = (py1 + py2) / 2 - 10;
-                string label = $"L{i + 1}: {lineResult.GapWidthPx:F0}px [{line.MinGapWidth}-{line.MaxGapWidth}]";
+                string label = $"L{i + 1}: {lineResult.GapWidthPx:F1}px [<={line.MaxGapWidth}]";
                 Cv2.PutText(annotated, label, new Point(labelX, labelY),
-                    HersheyFonts.HersheySimplex, 0.6, color, 2);
+                    HersheyFonts.HersheySimplex, 0.45, color, 1);
             }
 
             // Draw overall verdict
@@ -383,7 +603,7 @@ namespace Connector_Vision.Services
                 }
 
                 // Label
-                Cv2.PutText(chart, $"L{li + 1}: gap={lr.GapWidthPx:F0}px",
+                Cv2.PutText(chart, $"L{li + 1}: dist={lr.GapWidthPx:F1}px",
                     new Point(margin + 5, margin + 15 + li * 15),
                     HersheyFonts.HersheySimplex, 0.4, color, 1);
             }
@@ -412,6 +632,15 @@ namespace Connector_Vision.Services
             Cv2.CvtColor(edges, bgr, ColorConversionCodes.GRAY2BGR);
             edges.Dispose();
             return bgr;
+        }
+
+        /// <summary>
+        /// Reset EMA state. Call on model switch to prevent cross-model bleed.
+        /// </summary>
+        public void ResetEma()
+        {
+            _emaGapWidths = null;
+            _emaLineCount = 0;
         }
     }
 }

@@ -82,12 +82,10 @@ namespace Connector_Vision.Pages
             if (_settings.MeasurementLines != null && _settings.MeasurementLines.Count > 0)
             {
                 var first = _settings.MeasurementLines[0];
-                TxtMinWidth.Text = first.MinGapWidth.ToString();
                 TxtMaxWidth.Text = first.MaxGapWidth.ToString();
             }
             else
             {
-                TxtMinWidth.Text = "0";
                 TxtMaxWidth.Text = "20";
             }
         }
@@ -96,15 +94,12 @@ namespace Connector_Vision.Pages
         {
             if (_settings.MeasurementLines == null || _settings.MeasurementLines.Count == 0) return;
 
-            int min = 0, max = 20;
-            int.TryParse(TxtMinWidth.Text, out min);
+            int max = 20;
             int.TryParse(TxtMaxWidth.Text, out max);
-            if (min < 0) min = 0;
             if (max < 1) max = 1;
 
             foreach (var line in _settings.MeasurementLines)
             {
-                line.MinGapWidth = min;
                 line.MaxGapWidth = max;
             }
         }
@@ -184,9 +179,9 @@ namespace Connector_Vision.Pages
             if (result.LineResults != null)
             {
                 foreach (var lr in result.LineResults)
-                    lineInfo += $" L{lr.LineIndex + 1}={lr.GapWidthPx:F0}px";
+                    lineInfo += $" L{lr.LineIndex + 1}={lr.GapWidthPx:F1}px";
             }
-            TxtDiagInfo.Text = $"{status} | Max gap: {result.MaxGapWidthFound:F0}px |{lineInfo} | {result.InspectionTimeMs:F0}ms";
+            TxtDiagInfo.Text = $"{status} | Max gap: {result.MaxGapWidthFound:F1}px |{lineInfo} | {result.InspectionTimeMs:F0}ms";
 
             // Dispose result Mats
             result.AnnotatedFrame?.Dispose();

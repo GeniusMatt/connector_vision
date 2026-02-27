@@ -101,7 +101,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="L1 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock Text="L1 Edge Dist" Style="{StaticResource ParamLabel}"/>
                             <TextBlock x:Name="TxtLine1Gap" Grid.Column="1" Text="--"
                                        Foreground="White" FontSize="12"/>
                         </Grid>
@@ -111,7 +111,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="L2 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock Text="L2 Edge Dist" Style="{StaticResource ParamLabel}"/>
                             <TextBlock x:Name="TxtLine2Gap" Grid.Column="1" Text="--"
                                        Foreground="White" FontSize="12"/>
                         </Grid>
@@ -121,7 +121,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="L3 Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock Text="L3 Edge Dist" Style="{StaticResource ParamLabel}"/>
                             <TextBlock x:Name="TxtLine3Gap" Grid.Column="1" Text="--"
                                        Foreground="White" FontSize="12"/>
                         </Grid>
@@ -131,7 +131,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Max Gap" Style="{StaticResource ParamLabel}"/>
+                            <TextBlock Text="Max Edge Dist" Style="{StaticResource ParamLabel}"/>
                             <TextBlock x:Name="TxtMaxGap" Grid.Column="1" Text="--"
                                        Foreground="White" FontSize="12" FontWeight="Bold"/>
                         </Grid>

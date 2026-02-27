@@ -33,7 +33,7 @@ namespace Connector_Vision.Models
 
         public override string ToString()
         {
-            return $"({X1:F3},{Y1:F3}) → ({X2:F3},{Y2:F3})  [{MinGapWidth}-{MaxGapWidth}px]";
+            return $"({X1:F3},{Y1:F3}) → ({X2:F3},{Y2:F3})  [<={MaxGapWidth}px]";
         }
     }
 }

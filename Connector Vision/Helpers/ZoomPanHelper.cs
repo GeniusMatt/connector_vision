@@ -41,13 +41,24 @@ namespace Connector_Vision.Helpers
             if (newScale < 1.0) newScale = 1.0;
             if (newScale > 20.0) newScale = 20.0;
 
-            // Zoom to cursor: keep the point under mouse at the same screen position
-            var pos = e.GetPosition(img);
-            tt.X += pos.X * (st.ScaleX - newScale);
-            tt.Y += pos.Y * (st.ScaleY - newScale);
+            if (newScale <= 1.0)
+            {
+                // At minimum zoom, reset position to fit the full image
+                st.ScaleX = 1.0;
+                st.ScaleY = 1.0;
+                tt.X = 0;
+                tt.Y = 0;
+            }
+            else
+            {
+                // Zoom to cursor: keep the point under mouse at the same screen position
+                var pos = e.GetPosition(img);
+                tt.X += pos.X * (st.ScaleX - newScale);
+                tt.Y += pos.Y * (st.ScaleY - newScale);
 
-            st.ScaleX = newScale;
-            st.ScaleY = newScale;
+                st.ScaleX = newScale;
+                st.ScaleY = newScale;
+            }
             e.Handled = true;
         }
 

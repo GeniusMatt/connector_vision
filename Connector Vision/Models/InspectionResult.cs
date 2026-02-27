@@ -7,8 +7,8 @@ namespace Connector_Vision.Models
     {
         public int LineIndex { get; set; }
         public double GapWidthPx { get; set; }
-        public int GapStart { get; set; }
-        public int GapEnd { get; set; }
+        public double GapStart { get; set; }
+        public double GapEnd { get; set; }
         public byte[] ProfileData { get; set; }
         public bool IsOk { get; set; }
     }

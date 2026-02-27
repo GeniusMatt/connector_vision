@@ -124,7 +124,6 @@ namespace Connector_Vision.Pages
             SliderGapThreshold.Value = _settings.GapThreshold;
             SliderBlur.Value = _settings.GaussianBlurSize;
             SliderEdgeMargin.Value = _settings.EdgeMarginPercent;
-            SliderMinEdgeSep.Value = _settings.MinEdgeSeparation;
             CmbEdgeMode.SelectedIndex = _settings.EdgeDetectionMode;
             _suppressParamEvents = false;
         }
@@ -134,7 +133,6 @@ namespace Connector_Vision.Pages
             _settings.GapThreshold = (int)SliderGapThreshold.Value;
             _settings.GaussianBlurSize = (int)SliderBlur.Value;
             _settings.EdgeMarginPercent = (int)SliderEdgeMargin.Value;
-            _settings.MinEdgeSeparation = (int)SliderMinEdgeSep.Value;
             _settings.EdgeDetectionMode = CmbEdgeMode.SelectedIndex;
         }
 
@@ -305,11 +303,10 @@ namespace Connector_Vision.Pages
 
             var line = _settings.MeasurementLines[idx];
             _suppressParamEvents = true;
-            SliderLineMinGap.Value = line.MinGapWidth;
             SliderLineMaxGap.Value = line.MaxGapWidth;
             _suppressParamEvents = false;
 
-            TxtLineLimitsHeader.Text = $"Line {idx + 1} Limits";
+            TxtLineLimitsHeader.Text = $"Line {idx + 1} Threshold";
             BorderLineLimits.Visibility = Visibility.Visible;
         }
 
@@ -322,7 +319,6 @@ namespace Connector_Vision.Pages
                 return;
 
             var line = _settings.MeasurementLines[idx];
-            line.MinGapWidth = (int)SliderLineMinGap.Value;
             line.MaxGapWidth = (int)SliderLineMaxGap.Value;
 
             // Refresh the list to show updated limits
@@ -659,7 +655,7 @@ namespace Connector_Vision.Pages
             }
             else
             {
-                TxtLiveResult.Text = $"NG - max gap {result.MaxGapWidthFound:F0}px ({result.InspectionTimeMs:F0}ms)";
+                TxtLiveResult.Text = $"NG - max gap {result.MaxGapWidthFound:F1}px ({result.InspectionTimeMs:F0}ms)";
                 TxtLiveResult.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x33, 0x33));
             }
 
@@ -777,9 +773,9 @@ namespace Connector_Vision.Pages
                     string verdict = result.IsOk ? "OK" : "NG";
                     string lineInfo = "";
                     foreach (var lr in result.LineResults)
-                        lineInfo += $" L{lr.LineIndex + 1}={lr.GapWidthPx:F0}px";
+                        lineInfo += $" L{lr.LineIndex + 1}={lr.GapWidthPx:F1}px";
 
-                    TxtPreviewInfo.Text = $"{verdict} | Max gap: {result.MaxGapWidthFound:F0}px |{lineInfo} | {result.InspectionTimeMs:F0}ms";
+                    TxtPreviewInfo.Text = $"{verdict} | Max gap: {result.MaxGapWidthFound:F1}px |{lineInfo} | {result.InspectionTimeMs:F0}ms";
                 }
                 else
                 {

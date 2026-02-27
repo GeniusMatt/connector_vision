@@ -33,7 +33,6 @@ namespace Connector_Vision.Models
         [DataMember] public int GapThreshold { get; set; } = 80;
         [DataMember] public int GaussianBlurSize { get; set; } = 5;
         [DataMember] public int EdgeMarginPercent { get; set; } = 10;
-        [DataMember] public int MinEdgeSeparation { get; set; } = 10;
         [DataMember] public int EdgeDetectionMode { get; set; } = 0; // 0=Strongest Pair, 1=First & Last
 
         public void CopyInspectionParametersFrom(InspectionSettings other)
@@ -52,7 +51,6 @@ namespace Connector_Vision.Models
             GapThreshold = other.GapThreshold;
             GaussianBlurSize = other.GaussianBlurSize;
             EdgeMarginPercent = other.EdgeMarginPercent;
-            MinEdgeSeparation = other.MinEdgeSeparation;
             EdgeDetectionMode = other.EdgeDetectionMode;
         }
     }

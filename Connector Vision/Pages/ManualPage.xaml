@@ -77,11 +77,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,20,0">
-                    <TextBlock Text="Min Width:" Style="{StaticResource ParamLabel}" Margin="0,0,4,0"/>
-                    <TextBox x:Name="TxtMinWidth" Width="50" Height="24" VerticalContentAlignment="Center"
-                             FontSize="12" Foreground="White" Background="#2D2D3D" BorderBrush="#3D3D5C"
-                             LostFocus="TxtGapWidth_LostFocus" KeyDown="TxtGapWidth_KeyDown"/>
-                    <TextBlock Text="Max Width:" Style="{StaticResource ParamLabel}" Margin="10,0,4,0"/>
+                    <TextBlock Text="Max Edge Dist:" Style="{StaticResource ParamLabel}" Margin="0,0,4,0"/>
                     <TextBox x:Name="TxtMaxWidth" Width="50" Height="24" VerticalContentAlignment="Center"
                              FontSize="12" Foreground="White" Background="#2D2D3D" BorderBrush="#3D3D5C"
                              LostFocus="TxtGapWidth_LostFocus" KeyDown="TxtGapWidth_KeyDown"/>

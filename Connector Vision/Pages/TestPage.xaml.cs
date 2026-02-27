@@ -123,6 +123,7 @@ namespace Connector_Vision.Pages
             _settings.CameraResolution = camRes;
             _settings.CurrentModelName = name;
             _settingsManager.Save(_settings);
+            _inspectionService.ResetEma();
         }
 
         private void BtnStartStop_Click(object sender, RoutedEventArgs e)
@@ -213,7 +214,7 @@ namespace Connector_Vision.Pages
                 if (i < result.LineResults.Count)
                 {
                     var lr = result.LineResults[i];
-                    _lineGapTexts[i].Text = $"{lr.GapWidthPx:F0} px";
+                    _lineGapTexts[i].Text = $"{lr.GapWidthPx:F1} px";
                     _lineGapTexts[i].Foreground = lr.IsOk
                         ? new SolidColorBrush(Color.FromRgb(0x00, 0xCC, 0x00))
                         : new SolidColorBrush(Color.FromRgb(0xFF, 0x33, 0x33));
@@ -225,7 +226,7 @@ namespace Connector_Vision.Pages
                 }
             }
 
-            TxtMaxGap.Text = $"{result.MaxGapWidthFound:F0} px";
+            TxtMaxGap.Text = $"{result.MaxGapWidthFound:F1} px";
             TxtMaxGap.Foreground = result.IsOk
                 ? new SolidColorBrush(Color.FromRgb(0x00, 0xCC, 0x00))
                 : new SolidColorBrush(Color.FromRgb(0xFF, 0x33, 0x33));
